@@ -1,0 +1,201 @@
+import urllib
+from typing import Union, TypedDict
+import requests
+from telegram import __version__ as TG_VER
+from telegram import Update, Bot, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters, CallbackContext, CallbackQueryHandler
+import os
+from logger import logger
+from dotenv import load_dotenv
+
+
+"""
+start - Start the bot
+set_engine - To choose the engine 
+set_language - To choose language of your choice
+"""
+
+load_dotenv()
+
+botName = os.environ['botName']
+
+bot = Bot(token=os.environ['token'])
+try:
+    from telegram import __version_info__
+except ImportError:
+    __version_info__ = (0, 0, 0, 0, 0)  # type: ignore[assignment]
+
+if __version_info__ < (20, 0, 0, "alpha", 1):
+    raise RuntimeError(
+        f"This example is not compatible with your current PTB version {TG_VER}. To view the "
+        f"{TG_VER} version of this example, "
+        f"visit https://docs.python-telegram-bot.org/en/v{TG_VER}/examples.html"
+    )
+
+language_msg_mapping: dict = {
+    "English" : "You have chosen English. \nPlease give your query now",  
+    "Bengali": "আপনি বাংলা বেছে নিয়েছেন। \nঅনুগ্রহ করে এখন আপনার প্রশ্ন দিন",
+    "Gujarati": "તમે ગુજરાતી પસંદ કર્યું છે. \nકૃપા કરીને હવે તમારો પ્રશ્ન પૂછો",
+    "Hindi": "आपने हिंदी चुना है। \nआप अपना सवाल अब हिंदी में पूछ सकते हैं।",
+    "Kannada": "ಕನ್ನಡ ಆಯ್ಕೆ ಮಾಡಿಕೊಂಡಿದ್ದೀರಿ. \nದಯವಿಟ್ಟು ಈಗ ನಿಮ್ಮ ಪ್ರಶ್ನೆಯನ್ನು ನೀಡಿ",
+    "Malayalam": "നിങ്ങൾ മലയാളം തിരഞ്ഞെടുത്തു. \nദയവായി നിങ്ങളുടെ ചോദ്യം ഇപ്പോൾ നൽകുക",
+    "Marathi": "तुम्ही मराठीची निवड केली आहे. \nकृपया तुमची शंका आता द्या",
+    "Oriya": "ଆପଣ ଓଡିଆକୁ ବାଛିଛନ୍ତି | \n ବର୍ତ୍ତମାନ ଆପଣଙ୍କର ଜିଜ୍ଞାସା ଦିଅନ୍ତୁ |",
+    "Panjabi": "ਤੁਸੀਂ ਪੰਜਾਬੀ ਨੂੰ ਚੁਣਿਆ ਹੈ। \nਕਿਰਪਾ ਕਰਕੇ ਹੁਣੇ ਆਪਣੀ ਪੁੱਛਗਿੱਛ ਦਿਓ",
+    "Tamil": "நீங்கள் தமிழைத் தேர்ந்தெடுத்துள்ளீர்கள். \nஉங்கள் வினவலை இப்போதே தரவும்",
+    "Telugu": "మీరు తెలుగును ఎంచుకున్నారు. \nదయచేసి ఇప్పుడు మీ ప్రశ్నను ఇవ్వండి"
+}
+
+async def send_meesage_to_bot(chat_id, text, parse_mode = "Markdown") -> None:
+    """Send a message  to bot"""
+    await bot.send_message(chat_id=chat_id, text=text, parse_mode = parse_mode)
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Send a message when the command /start is issued."""
+    user_name = update.message.chat.first_name
+    logger.info({"id": update.effective_chat.id,"username": user_name, "category": "logged_in", "label": "logged_in"})
+    await send_meesage_to_bot(update.effective_chat.id, f"Hello, {user_name}! I am **{botName}**, your companion. \n\nI can assist you in finding stories, rhymes, puzzles, and a variety of other enjoyable activities.  \n\nFurthermore, I can also answer your questions  or offer assistance with any other needs you may have.")
+    await send_meesage_to_bot(update.effective_chat.id, "What would you like to do today?")
+    await relay_handler(update, context)
+
+
+async def relay_handler(update: Update, context: CallbackContext):
+    # setting engine manually
+    language = context.user_data.get('language')
+
+    if language is None:
+        await language_handler(update, context)
+    # else:
+        # await keyword_handler(update, context)
+
+async def language_handler(update: Update, context):
+    inline_keyboard_buttons = [
+        [InlineKeyboardButton('English', callback_data='lang_English')], [InlineKeyboardButton('বাংলা', callback_data='lang_Bengali')], 
+        [InlineKeyboardButton('ગુજરાતી', callback_data='lang_Gujarati')], [InlineKeyboardButton('हिंदी', callback_data='lang_Hindi')],
+        [InlineKeyboardButton('ಕನ್ನಡ', callback_data='lang_Kannada')], [InlineKeyboardButton('മലയാളം', callback_data='lang_Malayalam')],
+        [InlineKeyboardButton('मराठी', callback_data='lang_Marathi')], [InlineKeyboardButton('ଓଡ଼ିଆ', callback_data='lang_Oriya')],
+        [InlineKeyboardButton('ਪੰਜਾਬੀ', callback_data='lang_Panjabi')], [InlineKeyboardButton('தமிழ்', callback_data='lang_Tamil')],
+        [InlineKeyboardButton('తెలుగు', callback_data='lang_Telugu')]
+        ]
+    reply_markup = InlineKeyboardMarkup(inline_keyboard_buttons)
+
+    await bot.send_message(chat_id=update.effective_chat.id, text="Choose a Language:", reply_markup=reply_markup)
+
+
+async def preferred_language_callback(update: Update, context: CallbackContext):
+    
+    callback_query = update.callback_query
+    preferred_language = callback_query.data.lstrip('lang_')
+    context.user_data['language'] = preferred_language
+
+    text_message = language_msg_mapping[preferred_language]
+    logger.info({"id":update.effective_chat.id ,"username": update.effective_chat.first_name, "category": "language_selection", "label": "engine_selection", "value": preferred_language})
+    await send_meesage_to_bot(update.effective_chat.id, text_message)
+    return query_handler
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Send a message when the command /help is issued."""
+    await update.message.reply_text("Help!")
+
+
+class ApiResponse(TypedDict):
+    query: str
+    answer: str
+    source_text: str
+
+class ApiError(TypedDict):
+    error: Union[str, requests.exceptions.RequestException]
+
+async def get_query_response(query: str, voice_message_url: str, voice_message_language: str) -> Union[ApiResponse, ApiError]:
+    _domain = os.environ['upstream']
+    audienceType = os.environ['audienceType']
+    params: dict
+    try:
+        if voice_message_url is None:
+             params = {
+                    'query_text': query,
+                    'audio_url': "",
+                    'input_language': voice_message_language,
+                    'output_format': 'Text',
+                    'audience_type': audienceType
+                }
+        else:
+            params = {
+                'audio_url': voice_message_url,
+                'input_language': voice_message_language,
+                'output_format': 'Voice',
+                'audience_type': audienceType
+            }
+        url = f'{_domain}/query-using-voice?' \
+                  + urllib.parse.urlencode(params)
+        response = requests.get(url)
+        response.raise_for_status()
+        data = response.json()
+        return data
+    except requests.exceptions.RequestException as e:
+        return {'error': e}
+    except (KeyError, ValueError):
+        return {'error': 'Invalid response received from API'}
+
+async def response_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await query_handler(update, context)
+
+async def query_handler(update: Update, context: CallbackContext):
+    voice_message_language = context.user_data.get('language') or 'English'
+    voice_message = None
+    query = None
+    if update.message.text:
+        query = update.message.text
+        logger.info({"id":update.effective_chat.id ,"username": update.effective_chat.first_name, "category": "query_handler", "label": "question", "value": query})
+    elif update.message.voice:
+        voice_message = update.message.voice
+
+    voice_message_url = None
+    if voice_message is not None:
+        voice_file = await voice_message.get_file()
+        voice_message_url = voice_file.file_path
+        logger.info({"id":update.effective_chat.id ,"username": update.effective_chat.first_name, "category": "query_handler", "label": "voice_question", "value": voice_message_url})
+    # await bot.send_message(chat_id=update.effective_chat.id, text=f'Just a few seconds...')
+    await bot.sendChatAction(chat_id=update.effective_chat.id, action="typing")
+    await handle_query_response(update, query, voice_message_url, voice_message_language)
+    return query_handler
+
+async def handle_query_response(update: Update, query: str, voice_message_url: str, voice_message_language: str):
+    response = await get_query_response(query, voice_message_url, voice_message_language)
+    if "error" in response:
+        await bot.send_message(chat_id=update.effective_chat.id, text='An error has been encountered. Please try again.')
+        info_msg = {"id":update.effective_chat.id ,"username": update.effective_chat.first_name, "category": "handle_query_response", "label": "question_sent", "value": query}
+        logger.info(info_msg)
+        merged = dict()
+        merged.update(info_msg)
+        merged.update(response)
+        logger.error(merged)
+    else:
+        logger.info({"id":update.effective_chat.id ,"username": update.effective_chat.first_name, "category": "handle_query_response", "label": "answer_received", "value": query})
+        answer = response['answer']
+        await bot.send_message(chat_id=update.effective_chat.id, text=answer,  parse_mode = "Markdown")
+        if "audio_output_url" in response:
+            audio_output_url = response['audio_output_url']
+            audio_request = requests.get(audio_output_url)
+            audio_data = audio_request.content
+            await bot.send_voice(chat_id=update.effective_chat.id, voice=audio_data)
+
+def main() -> None:
+    logger.info('################################################')
+    logger.info('# Telegram bot name %s', os.environ['botName'])
+    logger.info('################################################')
+    application = ApplicationBuilder().bot(bot).build()
+
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CommandHandler('select_language', language_handler))
+
+    application.add_handler(CallbackQueryHandler(preferred_language_callback, pattern=r'lang_\w*'))
+
+    application.add_handler(MessageHandler(filters.TEXT | filters.VOICE, response_handler))
+
+    application.run_polling()
+
+
+if __name__ == "__main__":
+    main()
