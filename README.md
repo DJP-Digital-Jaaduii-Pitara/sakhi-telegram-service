@@ -28,8 +28,8 @@ The Sakhi Telegram Bot is a Python-based bot that interacts with the Sakhi API S
    - token
    - botName
    - upstream
-   - audienceType # Default, Teacher, Parent
-   - logLevel # DEBUG, INFO, ERROR
+   - audienceType - (Default, Teacher, Parent)
+   - logLevel - (DEBUG, INFO, ERROR)
    - promptMsg (optional)
 
 5. Start the Telegram bot
