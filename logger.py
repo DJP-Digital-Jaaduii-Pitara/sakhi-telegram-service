@@ -1,6 +1,5 @@
 import logging
 import os
-from logging.handlers import TimedRotatingFileHandler
 from dotenv import load_dotenv
 
 load_dotenv()
