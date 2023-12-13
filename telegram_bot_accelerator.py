@@ -41,7 +41,7 @@ language_msg_mapping: dict = {
     "Malayalam": "നിങ്ങൾ മലയാളം തിരഞ്ഞെടുത്തു. \nദയവായി നിങ്ങളുടെ ചോദ്യം ഇപ്പോൾ നൽകുക",
     "Marathi": "तुम्ही मराठीची निवड केली आहे. \nकृपया तुमची शंका आता द्या",
     "Oriya": "ଆପଣ ଓଡିଆକୁ ବାଛିଛନ୍ତି | \n ବର୍ତ୍ତମାନ ଆପଣଙ୍କର ଜିଜ୍ଞାସା ଦିଅନ୍ତୁ |",
-    "Panjabi": "ਤੁਸੀਂ ਪੰਜਾਬੀ ਨੂੰ ਚੁਣਿਆ ਹੈ। \nਕਿਰਪਾ ਕਰਕੇ ਹੁਣੇ ਆਪਣੀ ਪੁੱਛਗਿੱਛ ਦਿਓ",
+    "Punjabi": "ਤੁਸੀਂ ਪੰਜਾਬੀ ਨੂੰ ਚੁਣਿਆ ਹੈ। \nਕਿਰਪਾ ਕਰਕੇ ਹੁਣੇ ਆਪਣੀ ਪੁੱਛਗਿੱਛ ਦਿਓ",
     "Tamil": "நீங்கள் தமிழைத் தேர்ந்தெடுத்துள்ளீர்கள். \nஉங்கள் வினவலை இப்போதே தரவும்",
     "Telugu": "మీరు తెలుగును ఎంచుకున్నారు. \nదయచేసి ఇప్పుడు మీ ప్రశ్నను ఇవ్వండి"
 }
@@ -74,7 +74,7 @@ async def language_handler(update: Update, context):
         [InlineKeyboardButton('ગુજરાતી', callback_data='lang_Gujarati')], [InlineKeyboardButton('हिंदी', callback_data='lang_Hindi')],
         [InlineKeyboardButton('ಕನ್ನಡ', callback_data='lang_Kannada')], [InlineKeyboardButton('മലയാളം', callback_data='lang_Malayalam')],
         [InlineKeyboardButton('मराठी', callback_data='lang_Marathi')], [InlineKeyboardButton('ଓଡ଼ିଆ', callback_data='lang_Oriya')],
-        [InlineKeyboardButton('ਪੰਜਾਬੀ', callback_data='lang_Panjabi')], [InlineKeyboardButton('தமிழ்', callback_data='lang_Tamil')],
+        [InlineKeyboardButton('ਪੰਜਾਬੀ', callback_data='lang_Punjabi')], [InlineKeyboardButton('தமிழ்', callback_data='lang_Tamil')],
         [InlineKeyboardButton('తెలుగు', callback_data='lang_Telugu')]
         ]
     reply_markup = InlineKeyboardMarkup(inline_keyboard_buttons)
