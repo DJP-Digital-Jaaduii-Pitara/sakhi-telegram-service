@@ -1,4 +1,4 @@
-import urllib
+import json
 from typing import Union, TypedDict
 import requests
 from telegram import __version__ as TG_VER
@@ -70,12 +70,12 @@ async def relay_handler(update: Update, context: CallbackContext):
 
 async def language_handler(update: Update, context):
     inline_keyboard_buttons = [
-        [InlineKeyboardButton('English', callback_data='lang_English')], [InlineKeyboardButton('বাংলা', callback_data='lang_Bengali')], 
-        [InlineKeyboardButton('ગુજરાતી', callback_data='lang_Gujarati')], [InlineKeyboardButton('हिंदी', callback_data='lang_Hindi')],
-        [InlineKeyboardButton('ಕನ್ನಡ', callback_data='lang_Kannada')], [InlineKeyboardButton('മലയാളം', callback_data='lang_Malayalam')],
-        [InlineKeyboardButton('मराठी', callback_data='lang_Marathi')], [InlineKeyboardButton('ଓଡ଼ିଆ', callback_data='lang_Oriya')],
-        [InlineKeyboardButton('ਪੰਜਾਬੀ', callback_data='lang_Punjabi')], [InlineKeyboardButton('தமிழ்', callback_data='lang_Tamil')],
-        [InlineKeyboardButton('తెలుగు', callback_data='lang_Telugu')]
+        [InlineKeyboardButton('English', callback_data='lang_en')], [InlineKeyboardButton('বাংলা', callback_data='lang_bn')], 
+        [InlineKeyboardButton('ગુજરાતી', callback_data='lang_gu')], [InlineKeyboardButton('हिंदी', callback_data='lang_hi')],
+        [InlineKeyboardButton('ಕನ್ನಡ', callback_data='lang_kn')], [InlineKeyboardButton('മലയാളം', callback_data='lang_ml')],
+        [InlineKeyboardButton('मराठी', callback_data='lang_mr')], [InlineKeyboardButton('ଓଡ଼ିଆ', callback_data='or')],
+        [InlineKeyboardButton('ਪੰਜਾਬੀ', callback_data='lang_pa')], [InlineKeyboardButton('தமிழ்', callback_data='lang_ta')],
+        [InlineKeyboardButton('తెలుగు', callback_data='lang_te')]
         ]
     reply_markup = InlineKeyboardMarkup(inline_keyboard_buttons)
 
@@ -99,9 +99,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 
 class ApiResponse(TypedDict):
-    query: str
-    answer: str
-    source_text: str
+    output: any
 
 class ApiError(TypedDict):
     error: Union[str, requests.exceptions.RequestException]
@@ -112,23 +110,29 @@ async def get_query_response(query: str, voice_message_url: str, voice_message_l
     params: dict
     try:
         if voice_message_url is None:
-             params = {
-                    'query_text': query,
-                    'audio_url': "",
-                    'input_language': voice_message_language,
-                    'output_format': 'Text',
-                    'audience_type': audienceType
+            reqBody = json.dumps({
+                "input": {
+                    "language": voice_message_language,
+                    "text": query,
+                    'audienceType': audienceType
+                },
+                "output": {
+                    'format': 'text'
                 }
+            })
         else:
-            params = {
-                'audio_url': voice_message_url,
-                'input_language': voice_message_language,
-                'output_format': 'Voice',
-                'audience_type': audienceType
-            }
-        url = f'{_domain}/query-using-voice?' \
-                  + urllib.parse.urlencode(params)
-        response = requests.get(url)
+            reqBody = json.dumps({
+                "input": {
+                    "language": voice_message_language,
+                    "audio": voice_message_url,
+                    'audienceType': audienceType
+                },
+                "output": {
+                    'format': 'audio'
+                }
+            })
+        url = f'{_domain}/v1/query'
+        response = requests.post(url, data=reqBody)
         response.raise_for_status()
         data = response.json()
         return data
@@ -141,7 +145,7 @@ async def response_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     await query_handler(update, context)
 
 async def query_handler(update: Update, context: CallbackContext):
-    voice_message_language = context.user_data.get('language') or 'English'
+    voice_message_language = context.user_data.get('language') or 'en'
     voice_message = None
     query = None
     if update.message.text:
@@ -155,7 +159,7 @@ async def query_handler(update: Update, context: CallbackContext):
         voice_file = await voice_message.get_file()
         voice_message_url = voice_file.file_path
         logger.info({"id":update.effective_chat.id ,"username": update.effective_chat.first_name, "category": "query_handler", "label": "voice_question", "value": voice_message_url})
-    # await bot.send_message(chat_id=update.effective_chat.id, text=f'Just a few seconds...')
+    await bot.send_message(chat_id=update.effective_chat.id, text=f'Just a few seconds...')
     await bot.sendChatAction(chat_id=update.effective_chat.id, action="typing")
     await handle_query_response(update, query, voice_message_url, voice_message_language)
     return query_handler
@@ -172,10 +176,10 @@ async def handle_query_response(update: Update, query: str, voice_message_url: s
         logger.error(merged)
     else:
         logger.info({"id":update.effective_chat.id ,"username": update.effective_chat.first_name, "category": "handle_query_response", "label": "answer_received", "value": query})
-        answer = response['answer']
+        answer = response['output']["text"]
         await bot.send_message(chat_id=update.effective_chat.id, text=answer,  parse_mode = "Markdown")
-        if "audio_output_url" in response:
-            audio_output_url = response['audio_output_url']
+        if response['output']['audio']:
+            audio_output_url = response['output']["audio"]
             audio_request = requests.get(audio_output_url)
             audio_data = audio_request.content
             await bot.send_voice(chat_id=update.effective_chat.id, voice=audio_data)
