@@ -21,13 +21,9 @@ load_dotenv()
 
 botName = os.environ['botName']
 
-concurrent_updates = int(os.getenv('concurrent_updates', '8'))
-pool_time_out = int(os.getenv('pool_timeout', '30'))
+concurrent_updates = int(os.getenv('concurrent_updates', '3'))
+pool_time_out = int(os.getenv('pool_timeout', '10'))
 connection_pool_size = int(os.getenv('connection_pool_size', '512'))
-
-# bot = Bot(token=os.environ['token'])
-# bot.request.max_connections = connection_pool_size
-# bot.request.connect_timeout = pool_time_out
 
 try:
     from telegram import __version_info__
@@ -157,6 +153,8 @@ async def get_query_response(query: str, voice_message_url: str, voice_message_l
         response = requests.post(url, data=reqBody)
         response.raise_for_status()
         data = response.json()
+        requests.session().close()
+        response.close()
         return data
     except requests.exceptions.RequestException as e:
         return {'error': e}
