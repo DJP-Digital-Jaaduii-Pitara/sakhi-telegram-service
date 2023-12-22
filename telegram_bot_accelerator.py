@@ -1,13 +1,15 @@
 import json
-from typing import Union, TypedDict
-import requests
-from telegram import __version__ as TG_VER
-from telegram import Update, Bot, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters, CallbackContext, \
-    CallbackQueryHandler
 import os
-from logger import logger
+from typing import Union, TypedDict
+
+import requests
 from dotenv import load_dotenv
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import __version__ as TG_VER
+from telegram.ext import CommandHandler, ContextTypes, MessageHandler, filters, CallbackContext, \
+    CallbackQueryHandler, Application
+
+from logger import logger
 
 """
 start - Start the bot
@@ -19,7 +21,14 @@ load_dotenv()
 
 botName = os.environ['botName']
 
-bot = Bot(token=os.environ['token'])
+concurrent_updates = int(os.getenv('concurrent_updates', '8'))
+pool_time_out = int(os.getenv('pool_timeout', '30'))
+connection_pool_size = int(os.getenv('connection_pool_size', '512'))
+
+# bot = Bot(token=os.environ['token'])
+# bot.request.max_connections = connection_pool_size
+# bot.request.connect_timeout = pool_time_out
+
 try:
     from telegram import __version_info__
 except ImportError:
@@ -47,18 +56,18 @@ language_msg_mapping: dict = {
 }
 
 
-async def send_meesage_to_bot(chat_id, text, parse_mode="Markdown") -> None:
+async def send_message_to_bot(chat_id, text, context: CallbackContext, parse_mode="Markdown", ) -> None:
     """Send a message  to bot"""
-    await bot.send_message(chat_id=chat_id, text=text, parse_mode=parse_mode)
+    await context.bot.send_message(chat_id=chat_id, text=text, parse_mode=parse_mode)
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send a message when the command /start is issued."""
     user_name = update.message.chat.first_name
     logger.info({"id": update.effective_chat.id, "username": user_name, "category": "logged_in", "label": "logged_in"})
-    await send_meesage_to_bot(update.effective_chat.id,
-                              f"Hello, {user_name}! I am **{botName}**, your companion. \n\nI can assist you in finding stories, rhymes, puzzles, and a variety of other enjoyable activities.  \n\nFurthermore, I can also answer your questions  or offer assistance with any other needs you may have.")
-    await send_meesage_to_bot(update.effective_chat.id, "What would you like to do today?")
+    await send_message_to_bot(update.effective_chat.id,
+                              f"Hello, {user_name}! I am **{botName}**, your companion. \n\nI can assist you in finding stories, rhymes, puzzles, and a variety of other enjoyable activities.  \n\nFurthermore, I can also answer your questions  or offer assistance with any other needs you may have.", context)
+    await send_message_to_bot(update.effective_chat.id, "What would you like to do today?", context)
     await relay_handler(update, context)
 
 
@@ -72,7 +81,7 @@ async def relay_handler(update: Update, context: CallbackContext):
     # await keyword_handler(update, context)
 
 
-async def language_handler(update: Update, context):
+async def language_handler(update: Update, context: CallbackContext):
     inline_keyboard_buttons = [
         [InlineKeyboardButton('English', callback_data='lang_en')],
         [InlineKeyboardButton('বাংলা', callback_data='lang_bn')],
@@ -87,7 +96,7 @@ async def language_handler(update: Update, context):
     ]
     reply_markup = InlineKeyboardMarkup(inline_keyboard_buttons)
 
-    await bot.send_message(chat_id=update.effective_chat.id, text="Choose a Language:", reply_markup=reply_markup)
+    await context.bot.send_message(chat_id=update.effective_chat.id, text="Choose a Language:", reply_markup=reply_markup)
 
 
 async def preferred_language_callback(update: Update, context: CallbackContext):
@@ -99,7 +108,7 @@ async def preferred_language_callback(update: Update, context: CallbackContext):
     logger.info(
         {"id": update.effective_chat.id, "username": update.effective_chat.first_name, "category": "language_selection",
          "label": "engine_selection", "value": preferred_language})
-    await send_meesage_to_bot(update.effective_chat.id, text_message)
+    await send_message_to_bot(update.effective_chat.id, text_message, context)
     return query_handler
 
 
@@ -178,16 +187,16 @@ async def query_handler(update: Update, context: CallbackContext):
         logger.info(
             {"id": update.effective_chat.id, "username": update.effective_chat.first_name, "category": "query_handler",
              "label": "voice_question", "value": voice_message_url})
-    await bot.send_message(chat_id=update.effective_chat.id, text=f'Just a few seconds...')
-    await bot.sendChatAction(chat_id=update.effective_chat.id, action="typing")
-    await handle_query_response(update, query, voice_message_url, voice_message_language)
+    await context.bot.send_message(chat_id=update.effective_chat.id, text=f'Just a few seconds...')
+    await context.bot.sendChatAction(chat_id=update.effective_chat.id, action="typing")
+    await handle_query_response(update, context, query, voice_message_url, voice_message_language)
     return query_handler
 
 
-async def handle_query_response(update: Update, query: str, voice_message_url: str, voice_message_language: str):
+async def handle_query_response(update: Update, context: CallbackContext, query: str, voice_message_url: str, voice_message_language: str):
     response = await get_query_response(query, voice_message_url, voice_message_language)
     if "error" in response:
-        await bot.send_message(chat_id=update.effective_chat.id,
+        await context.bot.send_message(chat_id=update.effective_chat.id,
                                text='An error has been encountered. Please try again.')
         info_msg = {"id": update.effective_chat.id, "username": update.effective_chat.first_name,
                     "category": "handle_query_response", "label": "question_sent", "value": query}
@@ -200,12 +209,12 @@ async def handle_query_response(update: Update, query: str, voice_message_url: s
         logger.info({"id": update.effective_chat.id, "username": update.effective_chat.first_name,
                      "category": "handle_query_response", "label": "answer_received", "value": query})
         answer = response['output']["text"]
-        await bot.send_message(chat_id=update.effective_chat.id, text=answer, parse_mode="Markdown")
-        if response['output']['audio']:
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=answer, parse_mode="Markdown")
+        if response['output']["audio"]:
             audio_output_url = response['output']["audio"]
             audio_request = requests.get(audio_output_url)
             audio_data = audio_request.content
-            await bot.send_voice(chat_id=update.effective_chat.id, voice=audio_data)
+            await context.bot.send_voice(chat_id=update.effective_chat.id, voice=audio_data)
 
 
 def main() -> None:
@@ -213,13 +222,11 @@ def main() -> None:
     logger.info('# Telegram bot name %s', os.environ['botName'])
     logger.info('################################################')
 
-    concurrent_updates = int(os.getenv('concurrent_updates', '8'))
-    pool_time_out = int(os.getenv('pool_timeout', '30'))
-    connection_pool_size = int(os.getenv('connection_pool_size', '512'))
+    logger.info({"concurrent_updates": concurrent_updates})
+    logger.info({"pool_time_out": pool_time_out})
+    logger.info({"connection_pool_size": connection_pool_size})
 
-    application = ApplicationBuilder().bot(bot).concurrent_updates(concurrent_updates).pool_timeout(pool_time_out).connection_pool_size(
-        connection_pool_size).build()
-
+    application = Application.builder().token(os.environ['token']).pool_timeout(pool_time_out).connection_pool_size(connection_pool_size).concurrent_updates(concurrent_updates).connect_timeout(pool_time_out).read_timeout(pool_time_out).build()
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler('select_language', language_handler))
