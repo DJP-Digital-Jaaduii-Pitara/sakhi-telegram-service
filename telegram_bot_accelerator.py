@@ -21,9 +21,9 @@ load_dotenv()
 
 botName = os.environ['botName']
 
-concurrent_updates = int(os.getenv('concurrent_updates', '3'))
+concurrent_updates = int(os.getenv('concurrent_updates', '1'))
 pool_time_out = int(os.getenv('pool_timeout', '10'))
-connection_pool_size = int(os.getenv('connection_pool_size', '512'))
+connection_pool_size = int(os.getenv('connection_pool_size', '100'))
 
 try:
     from telegram import __version_info__
